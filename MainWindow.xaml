@@ -381,7 +381,7 @@
                                 </Border>
                             </Border>
 
-                            <!-- Dismiss Button -->
+                            <!-- Dismiss Button  -->
                             <Button x:Name="ToastDismissBtn" Content="Dismiss" 
                                     IsEnabled="False" Opacity="0.3" Cursor="Hand"
                                     Click="ToastDismiss_Click"
