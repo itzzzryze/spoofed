@@ -4,6 +4,6 @@
              xmlns:local="clr-namespace:SystemHardwareAudit"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+         #whatnow
     </Application.Resources>
 </Application>
