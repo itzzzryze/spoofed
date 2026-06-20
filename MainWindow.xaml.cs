@@ -63,7 +63,7 @@ namespace SystemHardwareAudit
                 }
                 catch (Win32Exception)
                 {
-                    // User declined UAC prompt. Continue as standard user.
+                    //  User declined UAC prompt. Continue as standard user.
                 }
                 catch { }
             }
