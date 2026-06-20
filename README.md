@@ -2,6 +2,9 @@
 
 check if your hardware serials are actually spoofed or not. pulls real IOCTL-level data instead of just trusting WMI like most tools do.
 
+<img width="978" height="781" alt="image" src="https://github.com/user-attachments/assets/7881a3c3-7d34-4f84-82c7-724676471d4d" />
+
+
 ## what it does
 
 - **disk serials (nvme + sata)**  talks directly to your drives via IOCTL, grabs the real serial/firmware/wwn. shows `00000000` for unsupported fields instead of making stuff up, this is good for eac games and it bypasses some spoofers that block getting drive information
