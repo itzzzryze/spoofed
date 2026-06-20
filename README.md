@@ -13,7 +13,7 @@ check if your hardware serials are actually spoofed or not. pulls real IOCTL-lev
 - **ram, volume serials, machine guid, monitor, arp, gpu, etc.**  all the usual tracking vectors from ac's
 - **live compare**  take a snapshot, change something (swap a usb, spoof a mac, whatever), run it again and diff the results in comparison view
 - **auto admin**  asks for UAC on launch since it needs it for WMI/registry access
-
+ 
 ## built with
 
 - C# / .NET
