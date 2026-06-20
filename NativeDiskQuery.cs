@@ -118,7 +118,7 @@ namespace SystemHardwareAudit
                     string scsiSerial = "00000000"; // Fallback placeholder
                     string ataSerial = "00000000"; // Fallback placeholder
 
-                    // 1. STORAGE_QUERY_PROPERTY
+                    // 1. STORAGE_QUERY_PROPERTY 
                     try
                     {
                         STORAGE_PROPERTY_QUERY query = new STORAGE_PROPERTY_QUERY();
