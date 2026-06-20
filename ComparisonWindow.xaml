@@ -19,6 +19,7 @@
         </EventTrigger>
     </Window.Triggers>
 
+
     <Window.Resources>
         <!-- Custom macOS style ScrollBar -->
         <Style TargetType="ScrollBar">
