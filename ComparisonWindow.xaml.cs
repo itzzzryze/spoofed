@@ -72,7 +72,7 @@ namespace SystemHardwareAudit
                         continue;
                     }
 
-                    // Skip empty/interface header rows 
+                    // Skip empty/interface header rows ,
                     if (string.IsNullOrWhiteSpace(oldVal) && string.IsNullOrWhiteSpace(newVal))
                         continue;
 
