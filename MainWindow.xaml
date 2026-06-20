@@ -1,0 +1,420 @@
+<Window x:Class="SystemHardwareAudit.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Spoofed?" Height="850" Width="1050"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+
+    <Window.Resources>
+        <!-- Custom macOS style ScrollBar -->
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Border Background="{TemplateBinding Background}">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="#33FFFFFF" CornerRadius="4" Margin="2,0"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sidebar Nav Items -->
+        <Style TargetType="ListBox" x:Key="SidebarNav">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="18,13"/>
+                        <Setter Property="Margin" Value="8,2"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="true">
+                                        <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#14FFFFFF"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#20FFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Pill Button -->
+        <Style TargetType="Button" x:Key="PillButton">
+            <Setter Property="Background" Value="#18FFFFFF"/>
+            <Setter Property="Foreground" Value="#CCFFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#15FFFFFF"/>
+            <Setter Property="Padding" Value="18,8"/>
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#30FFFFFF"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="Window.Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.6">
+                        <DoubleAnimation.EasingFunction>
+                            <CubicEase EasingMode="EaseOut"/>
+                        </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
+
+    <!-- Outer drop shadow wrapper -->
+    <Border Margin="35">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.5" Color="Black"/>
+        </Border.Effect>
+
+        <Border CornerRadius="14" ClipToBounds="True">
+            <!-- Main background with subtle gradient -->
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1C1C1E" Offset="0"/>
+                    <GradientStop Color="#141416" Offset="0.5"/>
+                    <GradientStop Color="#1A1A1F" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+
+            <Grid>
+                <!-- Loading Overlay with blur -->
+                <Border x:Name="LoadingScreen" Panel.ZIndex="100" CornerRadius="14">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#1C1C1E" Offset="0"/>
+                            <GradientStop Color="#0E0E10" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <!-- Removed the glowing blob -->
+                        <TextBlock Text="Gathering System Info..." Foreground="#99FFFFFF" FontFamily="Segoe UI" FontWeight="Light" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                        <ProgressBar IsIndeterminate="True" Width="160" Height="2" Foreground="#5856D6" Background="#2C2C2E" BorderThickness="0"/>
+                    </StackPanel>
+                </Border>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Frosted Sidebar -->
+                    <Border Grid.Column="0" BorderThickness="0,0,1,0" BorderBrush="#15FFFFFF">
+                        <Border.Background>
+                            <SolidColorBrush Color="#0D0D0F" Opacity="0.6"/>
+                        </Border.Background>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Window Buttons (macOS style, top-left) -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="20,20,0,0">
+                                <Button Width="12" Height="12" Background="#FF5F57" BorderThickness="0" Margin="0,0,8,0" Cursor="Hand" Click="CloseButton_Click">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="dot" Background="{TemplateBinding Background}" CornerRadius="6" Opacity="0.85"/>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="dot" Property="Opacity" Value="1"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <Button Width="12" Height="12" Background="#FEBD2F" BorderThickness="0" Margin="0,0,8,0" Cursor="Hand" Click="MinimizeButton_Click">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="dot" Background="{TemplateBinding Background}" CornerRadius="6" Opacity="0.85"/>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="dot" Property="Opacity" Value="1"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <Button Width="12" Height="12" Background="#28C840" BorderThickness="0" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="dot" Background="{TemplateBinding Background}" CornerRadius="6" Opacity="0.85"/>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="dot" Property="Opacity" Value="1"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Brand -->
+                            <StackPanel Grid.Row="1" Margin="22,28,22,20">
+                                <TextBlock Text="spoofed?" Foreground="#FFFFFF" FontFamily="Segoe UI" FontWeight="SemiBold" FontSize="16" Opacity="0.95"/>
+                                <TextBlock Text="samsam.lol" Foreground="#FFFFFF" FontFamily="Segoe UI" FontWeight="Light" FontSize="12" Opacity="0.35" Margin="0,2,0,0"/>
+                            </StackPanel>
+
+                            <!-- Navigation -->
+                            <ListBox Grid.Row="2" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" Style="{StaticResource SidebarNav}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" Foreground="#DDFFFFFF" FontSize="13" FontWeight="Normal" FontFamily="Segoe UI"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Main Content -->
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="60"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Top Action Bar -->
+                        <Border Grid.Row="0" BorderThickness="0,0,0,1" BorderBrush="#10FFFFFF">
+                            <Grid Margin="30,0,20,0">
+                                <!-- Category title on left -->
+                                <TextBlock Text="{Binding SelectedCategory.Name}" Foreground="#99FFFFFF" FontSize="13" FontWeight="Medium" FontFamily="Segoe UI" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+
+                                <!-- Action buttons on right -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button x:Name="GhostCleanupBtn" Content="Clean Ghost Devices" Foreground="#FFFF6B6B" Click="GhostCleanup_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource PillButton}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedCategory.Name}" Value="USB Peripherals">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Export" Style="{StaticResource PillButton}" Click="ExportButton_Click"/>
+                                    <Button Content="Save Baseline" Style="{StaticResource PillButton}" Click="SaveBaseline_Click"/>
+                                    <Button Content="Compare" Style="{StaticResource PillButton}" Click="CompareButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Detail View -->
+                        <ScrollViewer Grid.Row="1" Margin="30,20,30,25" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding SelectedCategory.Items}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border x:Name="DataRow" Margin="0,0,0,4" Padding="18,14" CornerRadius="10"
+                                                    BorderThickness="1" BorderBrush="#08FFFFFF">
+                                                <Border.Background>
+                                                    <SolidColorBrush Color="#FFFFFF" Opacity="0.04"/>
+                                                </Border.Background>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="200"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    
+                                                    <TextBlock x:Name="LabelText" Grid.Column="0" Text="{Binding Label}" 
+                                                               Foreground="#77FFFFFF" FontWeight="Normal" FontSize="13" 
+                                                               VerticalAlignment="Center" FontFamily="Segoe UI"
+                                                               HorizontalAlignment="Left"/>
+
+                                                    <TextBox x:Name="ValueText" Grid.Column="1" Text="{Binding Value, Mode=OneWay}" 
+                                                             Foreground="#EEFFFFFF" FontSize="13" 
+                                                             Background="Transparent" BorderThickness="0" 
+                                                             IsReadOnly="True" TextWrapping="Wrap" 
+                                                             FontFamily="Segoe UI" FontWeight="Light"
+                                                             VerticalAlignment="Center" 
+                                                             SelectionBrush="#5856D6"
+                                                             Padding="0"/>
+
+                                                    <Border Grid.Column="2" CornerRadius="6" Padding="8,3" 
+                                                            Margin="12,0,0,0" Cursor="Help" VerticalAlignment="Center"
+                                                            ToolTip="{Binding TooltipText}">
+                                                        <Border.Background>
+                                                            <SolidColorBrush Color="#FFFFFF" Opacity="0.06"/>
+                                                        </Border.Background>
+                                                        <TextBlock Text="?" Foreground="#55FFFFFF" FontSize="11" FontWeight="Medium" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                            
+                                            <!-- Separator Element -->
+                                            <Border x:Name="SeparatorRow" Visibility="Collapsed" Height="1" Margin="30,15,30,20">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="Transparent" Offset="0"/>
+                                                        <GradientStop Color="#15FFFFFF" Offset="0.5"/>
+                                                        <GradientStop Color="Transparent" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                        </Grid>
+
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                                                <Setter TargetName="DataRow" Property="Background" Value="Transparent"/>
+                                                <Setter TargetName="DataRow" Property="BorderThickness" Value="0"/>
+                                                <Setter TargetName="ValueText" Property="Visibility" Value="Collapsed"/>
+                                                <Setter TargetName="LabelText" Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter TargetName="LabelText" Property="Foreground" Value="#55FFFFFF"/>
+                                                <Setter TargetName="LabelText" Property="FontSize" Value="14"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsSeparator}" Value="True">
+                                                <Setter TargetName="DataRow" Property="Visibility" Value="Collapsed"/>
+                                                <Setter TargetName="SeparatorRow" Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                <!-- Full-Screen Modal Notification -->
+                <Border x:Name="ToastScrim" Panel.ZIndex="200" Grid.ColumnSpan="2"
+                        Visibility="Collapsed" Opacity="0" CornerRadius="14">
+                    <Border.Background>
+                        <SolidColorBrush Color="#000000" Opacity="0.75"/>
+                    </Border.Background>
+
+                    <!-- Centered Card -->
+                    <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                            CornerRadius="16" Padding="40,32" MinWidth="380" MaxWidth="460">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#222226" Offset="0"/>
+                                <GradientStop Color="#1A1A1E" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#FFFFFF" Opacity="0.06"/>
+                        </Border.BorderBrush>
+                        <Border.BorderThickness>1</Border.BorderThickness>
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.6" Color="Black"/>
+                        </Border.Effect>
+                        <StackPanel>
+                            <!-- Checkmark Icon -->
+                            <TextBlock x:Name="ToastIcon" Text="✓" Foreground="#5856D6" 
+                                       FontSize="32" FontWeight="Bold" 
+                                       HorizontalAlignment="Center" Margin="0,0,0,16"/>
+
+                            <!-- Title -->
+                            <TextBlock x:Name="ToastTitle" Text="" Foreground="#FFFFFF" 
+                                       FontFamily="Segoe UI" FontWeight="SemiBold" FontSize="17" 
+                                       HorizontalAlignment="Center" Margin="0,0,0,10"/>
+
+                            <!-- Subtitle -->
+                            <TextBlock x:Name="ToastSubtitle" Text="" Foreground="#80FFFFFF" 
+                                       FontFamily="Segoe UI" FontWeight="Light" FontSize="13" 
+                                       HorizontalAlignment="Center" TextWrapping="Wrap" 
+                                       TextAlignment="Center" Margin="0,0,0,24" LineHeight="20"/>
+
+                            <!-- Countdown Progress Bar -->
+                            <Border x:Name="ToastProgressTrack" CornerRadius="2" Height="3" Margin="0,0,0,20" 
+                                    Background="#15FFFFFF" ClipToBounds="True">
+                                <Border x:Name="ToastProgressBar" CornerRadius="2" Height="3"
+                                        HorizontalAlignment="Left" Width="0">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#5856D6" Offset="0"/>
+                                            <GradientStop Color="#7B79E8" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                            </Border>
+
+                            <!-- Dismiss Button -->
+                            <Button x:Name="ToastDismissBtn" Content="Dismiss" 
+                                    IsEnabled="False" Opacity="0.3" Cursor="Hand"
+                                    Click="ToastDismiss_Click"
+                                    FontFamily="Segoe UI" FontSize="13" FontWeight="Medium"
+                                    Foreground="#CCFFFFFF" Background="Transparent" 
+                                    BorderThickness="1" HorizontalAlignment="Center"
+                                    Padding="28,8">
+                                <Button.BorderBrush>
+                                    <SolidColorBrush Color="#FFFFFF" Opacity="0.1"/>
+                                </Button.BorderBrush>
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="btnBorder" Background="{TemplateBinding Background}" 
+                                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="btnBorder" Property="Background" Value="#18FFFFFF"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </Border>
+
+                </Grid>
+            </Grid>
+        </Border>
+    </Border>
+
+</Window>
