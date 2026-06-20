@@ -60,7 +60,7 @@ namespace SystemHardwareAudit
                     }
                 }
 
-                // Add OS identifiers and Machine GUID
+                // Add OS identifiers and Machine GUID 
                 string machineGuid = GetRegistryValue(@"SOFTWARE\Microsoft\Cryptography", "MachineGuid", "Unknown");
                 string productId = GetRegistryValue(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductId", "Unknown");
                 
