@@ -3,6 +3,7 @@
 check if your hardware serials are actually spoofed or not. pulls real IOCTL-level data instead of just trusting WMI like most tools do.
 
 <img width="978" height="781" alt="image" src="https://github.com/user-attachments/assets/7881a3c3-7d34-4f84-82c7-724676471d4d" />
+<img width="961" height="704" alt="image" src="https://github.com/user-attachments/assets/aeed0680-bdf7-4e67-a9d9-b6aa4f785648" />
 
 
 ## what it does
