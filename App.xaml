@@ -4,6 +4,6 @@
              xmlns:local="clr-namespace:SystemHardwareAudit"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+         // this is a comment
     </Application.Resources>
 </Application>
