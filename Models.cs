@@ -17,3 +17,4 @@ namespace SystemHardwareAudit.Models
         public bool IsPlaceholder { get; set; }
     }
 }
+
