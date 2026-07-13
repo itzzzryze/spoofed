@@ -4,6 +4,15 @@ check if your hardware serials are actually spoofed or not. pulls real IOCTL-lev
 
 <img width="2024" height="2376" alt="spoofed" src="https://github.com/user-attachments/assets/0ad0f91e-1f59-44fa-9498-48e8c0c2a943" />
 
+## latest update
+
+- smarter comparison with separate **Important** and **All values** tabs
+- clear Pass, Stable, Attention, Info, and Unavailable results
+- comparison logic now understands generic serials, hidden identifiers, RAID storage, ARP entries, and TPM state
+- dedicated TPM page with status, ownership, manufacturer details, endorsement-key serial, and thumbprint
+- improved native disk queries for Storage Property, SMART, WWN, SCSI pass-through, and ATA pass-through
+- values can be selected and copied directly
+- redesigned interface with larger text, clearer grouping, smoother animations, and cleaner navigation
 
 ## what it does
 
