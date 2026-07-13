@@ -27,8 +27,18 @@ namespace SystemHardwareAudit
             {
                 _selectedCategory = value;
                 OnPropertyChanged(nameof(SelectedCategory));
+                OnPropertyChanged(nameof(SelectedCategoryDescription));
+                OnPropertyChanged(nameof(SelectedCategoryItemCount));
+                OnPropertyChanged(nameof(SelectedCategoryContextLabel));
+
+                if (IsLoaded)
+                    Dispatcher.BeginInvoke(AnimateCategoryTransition);
             }
         }
+
+        public string SelectedCategoryDescription => GetCategoryDescription(SelectedCategory?.Name);
+        public int SelectedCategoryItemCount => SelectedCategory?.Items?.Count(item => !item.IsSeparator) ?? 0;
+        public string SelectedCategoryContextLabel => GetCategoryContextLabel(SelectedCategory?.Name);
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string propertyName)
@@ -72,6 +82,64 @@ namespace SystemHardwareAudit
             DataContext = this;
         }
 
+        private static string GetCategoryDescription(string? categoryName)
+        {
+            return categoryName switch
+            {
+                "System Information" => "SMBIOS system details and IDs.",
+                "Operating System" => "Windows version, install details, and machine IDs.",
+                "BIOS Information" => "Firmware details and security settings.",
+                "TPM Information" => "TPM status, firmware, certificate serial, and thumbprint.",
+                "Baseboard Information" => "Motherboard model, revision, asset tag, and serial.",
+                "Processor Information" => "Processor model, topology, and reported IDs.",
+                "Physical Memory (RAM)" => "Memory modules, slots, and serials.",
+                "Disk Drive Information" => "Drive IDs read through each supported query path.",
+                "Volume Serial Numbers" => "Volume IDs visible to Windows.",
+                "Network Information" => "Adapter settings, kernel MAC, and cached MAC.",
+                "ARP Information" => "Entries currently visible in the ARP table.",
+                "Monitor Information" => "Monitor IDs decoded from EDID.",
+                "GPU Information" => "Graphics adapter IDs and driver details.",
+                "USB Peripherals" => "Current and disconnected USB device records.",
+                _ => "Collected hardware and system values."
+            };
+        }
+
+        private static string GetCategoryContextLabel(string? categoryName)
+        {
+            return categoryName switch
+            {
+                "System Information" or "Operating System" => "SYSTEM IDENTITY",
+                "BIOS Information" or "TPM Information" => "FIRMWARE & TRUST",
+                "Baseboard Information" or "Processor Information" or "Physical Memory (RAM)" => "CORE HARDWARE",
+                "Disk Drive Information" or "Volume Serial Numbers" => "STORAGE",
+                "Network Information" or "ARP Information" => "NETWORK",
+                "Monitor Information" or "GPU Information" => "DISPLAY",
+                "USB Peripherals" => "PERIPHERALS",
+                _ => "AUDIT CATEGORY"
+            };
+        }
+
+        private void AnimateCategoryTransition()
+        {
+            if (DetailContent == null)
+                return;
+
+            DetailScrollViewer?.ScrollToTop();
+            var ease = new QuinticEase { EasingMode = EasingMode.EaseOut };
+            DetailContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.35, 1, TimeSpan.FromMilliseconds(260))
+            {
+                EasingFunction = ease
+            }, HandoffBehavior.SnapshotAndReplace);
+
+            if (DetailContent.RenderTransform is TranslateTransform translate)
+            {
+                translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(5, 0, TimeSpan.FromMilliseconds(320))
+                {
+                    EasingFunction = ease
+                }, HandoffBehavior.SnapshotAndReplace);
+            }
+        }
+
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             try
@@ -88,8 +156,10 @@ namespace SystemHardwareAudit
                     SelectedCategory = Categories[0];
                 }
 
-                // Fade out loading screen
-                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.5));
+                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(320))
+                {
+                    EasingFunction = new QuinticEase { EasingMode = EasingMode.EaseInOut }
+                };
                 fadeOut.Completed += (s, ev) => { LoadingScreen.Visibility = Visibility.Collapsed; };
                 LoadingScreen.BeginAnimation(UIElement.OpacityProperty, fadeOut);
             }
@@ -101,7 +171,10 @@ namespace SystemHardwareAudit
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            var anim = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.2));
+            var anim = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(240))
+            {
+                EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseIn }
+            };
             anim.Completed += (s, ev) => Application.Current.Shutdown();
             this.BeginAnimation(UIElement.OpacityProperty, anim);
         }
@@ -141,11 +214,11 @@ namespace SystemHardwareAudit
                         sw.WriteLine();
                     }
                 }
-                ShowToast("Export Complete", "Hardware audit saved to your Desktop.");
+                ShowToast("Export saved", "The audit is on your Desktop.");
             }
             catch (Exception ex)
             {
-                ShowToast("Export Failed", ex.Message, isError: true);
+                ShowToast("Export failed", ex.Message, isError: true);
             }
         }
 
@@ -160,11 +233,11 @@ namespace SystemHardwareAudit
 
                 string json = JsonSerializer.Serialize(Categories);
                 File.WriteAllText(path, json);
-                ShowToast("Baseline Captured", "You may now spoof your hardware. Once complete, press Compare to verify changes.");
+                ShowToast("Baseline saved", "Run the spoofer, then compare again.");
             }
             catch (Exception ex)
             {
-                ShowToast("Baseline Failed", ex.Message, isError: true);
+                ShowToast("Baseline failed", ex.Message, isError: true);
             }
         }
 
@@ -175,15 +248,17 @@ namespace SystemHardwareAudit
 
             if (!File.Exists(path))
             {
-                ShowToast("No Baseline Found", "Save a baseline first to capture your pre-spoof hardware state.");
+                ShowToast("No baseline", "Save a baseline before comparing.");
                 return;
             }
 
             try
             {
-                // Show loading screen
                 LoadingScreen.Visibility = Visibility.Visible;
-                LoadingScreen.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.2)));
+                LoadingScreen.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220))
+                {
+                    EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut }
+                }, HandoffBehavior.SnapshotAndReplace);
 
                 string json = File.ReadAllText(path);
                 var oldData = JsonSerializer.Deserialize<ObservableCollection<AuditCategory>>(json);
@@ -197,8 +272,10 @@ namespace SystemHardwareAudit
                 foreach (var cat in currentDataList) Categories.Add(cat);
                 if (Categories.Count > 0 && SelectedCategory == null) SelectedCategory = Categories[0];
 
-                // Hide loading screen
-                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.2));
+                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(260))
+                {
+                    EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseInOut }
+                };
                 fadeOut.Completed += (s, ev) => { LoadingScreen.Visibility = Visibility.Collapsed; };
                 LoadingScreen.BeginAnimation(UIElement.OpacityProperty, fadeOut);
 
@@ -208,7 +285,7 @@ namespace SystemHardwareAudit
             }
             catch (Exception ex)
             {
-                ShowToast("Comparison Error", ex.Message, isError: true);
+                ShowToast("Compare failed", ex.Message, isError: true);
             }
         }
 
@@ -220,7 +297,7 @@ namespace SystemHardwareAudit
             var ghostDevices = SelectedCategory.Items.Where(i => i.Label.Contains("[GHOST]")).ToList();
             if (ghostDevices.Count == 0)
             {
-                ShowToast("No Ghosts Found", "Your system is already clean of disconnected USB traces.");
+                ShowToast("No ghost devices", "No disconnected USB records were found.");
                 return;
             }
 
@@ -265,7 +342,7 @@ namespace SystemHardwareAudit
                 var proc = Process.Start(psi);
                 proc.WaitForExit();
 
-                ShowToast("Cleanup Complete", $"Successfully requested deletion of {ghostDevices.Count} ghost device(s). Refreshing list...");
+                ShowToast("Cleanup finished", $"Requested removal of {ghostDevices.Count} device record(s). Refreshing the list.");
                 
                 // Refresh list automatically
                 var updatedUsb = SystemInfoGatherer.GetSystemAudit().FirstOrDefault(c => c.Name == "USB Peripherals");
@@ -278,7 +355,7 @@ namespace SystemHardwareAudit
             }
             catch (Exception)
             {
-                ShowToast("Cleanup Failed", "You must accept the Administrator prompt to delete registry keys.", isError: true);
+                ShowToast("Cleanup failed", "Approve the administrator prompt to remove these records.", isError: true);
             }
         }
 
@@ -312,20 +389,29 @@ namespace SystemHardwareAudit
             ToastScrim.Visibility = Visibility.Visible;
             ToastScrim.UpdateLayout(); // Force layout so ActualWidth is correct
 
-            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.3))
+            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(240))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut }
             };
             ToastScrim.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+
+            if (ToastCard.RenderTransform is ScaleTransform toastScale)
+            {
+                toastScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.99, 1, TimeSpan.FromMilliseconds(300))
+                {
+                    EasingFunction = new QuinticEase { EasingMode = EasingMode.EaseOut }
+                }, HandoffBehavior.SnapshotAndReplace);
+                toastScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.99, 1, TimeSpan.FromMilliseconds(300))
+                {
+                    EasingFunction = new QuinticEase { EasingMode = EasingMode.EaseOut }
+                }, HandoffBehavior.SnapshotAndReplace);
+            }
 
             // Animate progress bar over 3 seconds
             double targetWidth = ToastProgressTrack.ActualWidth;
             if (targetWidth <= 0) targetWidth = 300; // safe fallback
 
-            var progressAnim = new DoubleAnimation(0, targetWidth, TimeSpan.FromSeconds(3))
-            {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
-            };
+            var progressAnim = new DoubleAnimation(0, targetWidth, TimeSpan.FromSeconds(3));
             ToastProgressBar.BeginAnimation(FrameworkElement.WidthProperty, progressAnim);
 
             // Countdown labels
@@ -338,16 +424,25 @@ namespace SystemHardwareAudit
             // Enable dismiss
             ToastDismissBtn.Content = "Dismiss";
             ToastDismissBtn.IsEnabled = true;
-            var btnFadeIn = new DoubleAnimation(0.3, 1, TimeSpan.FromSeconds(0.25));
+            var btnFadeIn = new DoubleAnimation(0.3, 1, TimeSpan.FromMilliseconds(220))
+            {
+                EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut }
+            };
             ToastDismissBtn.BeginAnimation(UIElement.OpacityProperty, btnFadeIn);
         }
 
         private void ToastDismiss_Click(object sender, RoutedEventArgs e)
         {
-            var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.25))
+            var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+                EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseIn }
             };
+            if (ToastCard.RenderTransform is ScaleTransform toastScale)
+            {
+                var settle = new QuarticEase { EasingMode = EasingMode.EaseIn };
+                toastScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.995, TimeSpan.FromMilliseconds(220)) { EasingFunction = settle });
+                toastScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.995, TimeSpan.FromMilliseconds(220)) { EasingFunction = settle });
+            }
             fadeOut.Completed += (s, ev) =>
             {
                 ToastScrim.Visibility = Visibility.Collapsed;

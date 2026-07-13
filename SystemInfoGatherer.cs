@@ -8,6 +8,7 @@ using SystemHardwareAudit.Models;
 using System.Text;
 using System.Net.NetworkInformation;
 using System.Security.Principal;
+using System.Text.Json;
 
 namespace SystemHardwareAudit
 {
@@ -20,6 +21,7 @@ namespace SystemHardwareAudit
                 GetIdentityAndCryptography(),
                 GetOperatingSystem(),
                 GetFirmwareAndSecurity(),
+                GetTpmInformation(),
                 GetMotherboard(),
                 GetProcessor(),
                 GetMemory(),
@@ -147,87 +149,183 @@ namespace SystemHardwareAudit
                 string secureBoot = GetRegistryValue(@"SYSTEM\CurrentControlSet\Control\SecureBoot\State", "UEFISecureBootEnabled", "0");
                 cat.Items.Add(new AuditItem { Label = "Secure Boot", Value = secureBoot == "1" ? "Enabled" : "Disabled", TooltipText = "UEFI Secure Boot Status" });
 
-                // TPM Status
-                try
-                {
-                    bool isAdmin = false;
-                    try
-                    {
-                        using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
-                        {
-                            WindowsPrincipal principal = new WindowsPrincipal(identity);
-                            isAdmin = principal.IsInRole(WindowsBuiltInRole.Administrator);
-                        }
-                    }
-                    catch { }
-
-                    if (!isAdmin)
-                    {
-                        cat.Items.Add(new AuditItem { Label = "TPM Status", Value = "Requires Admin", TooltipText = "Launch application as Administrator to query TPM" });
-                    }
-                    else
-                    {
-                        using (var searcher = new ManagementObjectSearcher(@"root\CIMV2\Security\MicrosoftTpm", "SELECT * FROM Win32_Tpm"))
-                        {
-                            var tpms = searcher.Get().Cast<ManagementObject>().ToList();
-                            if (tpms.Count == 0)
-                            {
-                                cat.Items.Add(new AuditItem { Label = "TPM Status", Value = "Not Present / Disabled", TooltipText = "No TPM found in WMI" });
-                            }
-                            else
-                            {
-                                foreach (var tpm in tpms)
-                                {
-                                    bool isEnabled = (bool)(tpm["IsEnabled_InitialValue"] ?? false);
-                                    bool isActivated = (bool)(tpm["IsActivated_InitialValue"] ?? false);
-                                    bool isOwned = (bool)(tpm["IsOwned_InitialValue"] ?? false);
-                                    
-                                    string tpmStatus = "Present (Inactive)";
-                                    if (isEnabled && isActivated)
-                                    {
-                                        tpmStatus = isOwned ? "Ready & Owned" : "Present (Not Ready / Unowned)";
-                                    }
-                                    
-                                    cat.Items.Add(new AuditItem { Label = "TPM Status", Value = tpmStatus, TooltipText = "Trusted Platform Module" });
-                                    
-                                    string mfgId = tpm["ManufacturerId"]?.ToString() ?? "Unknown";
-                                    cat.Items.Add(new AuditItem { Label = "Manufacturer ID", Value = mfgId, TooltipText = "TPM Manufacturer ID" });
-                                    cat.Items.Add(new AuditItem { Label = "Manufacturer Version", Value = tpm["ManufacturerVersion"]?.ToString() ?? "Unknown", TooltipText = "TPM Version" });
-                                    cat.Items.Add(new AuditItem { Label = "Spec Version", Value = tpm["SpecVersion"]?.ToString() ?? "Unknown", TooltipText = "TPM Spec Version" });
-
-                                    // EK Hash via Powershell
-                                    string ekHash = "Unavailable";
-                                    try
-                                    {
-                                        ProcessStartInfo psi = new ProcessStartInfo("powershell", "-Command \"(Get-TpmEndorsementKeyInfo).PublicEkCert.Thumbprint\"")
-                                        {
-                                            RedirectStandardOutput = true,
-                                            UseShellExecute = false,
-                                            CreateNoWindow = true
-                                        };
-                                        using (Process p = Process.Start(psi))
-                                        {
-                                            string hash = p.StandardOutput.ReadToEnd().Trim();
-                                            if (!string.IsNullOrEmpty(hash) && !hash.Contains("Exception"))
-                                            {
-                                                ekHash = hash;
-                                            }
-                                        }
-                                    }
-                                    catch { }
-                                    cat.Items.Add(new AuditItem { Label = "Endorsement Key", Value = ekHash, TooltipText = "TPM Endorsement Key Hash" });
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    cat.Items.Add(new AuditItem { Label = "TPM Status", Value = "Error accessing WMI", TooltipText = ex.Message });
-                }
             }
             catch { }
             return cat;
+        }
+
+        private static AuditCategory GetTpmInformation()
+        {
+            var cat = new AuditCategory { Name = "TPM Information" };
+
+            try
+            {
+                bool isAdmin = false;
+                try
+                {
+                    using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                    {
+                        WindowsPrincipal principal = new WindowsPrincipal(identity);
+                        isAdmin = principal.IsInRole(WindowsBuiltInRole.Administrator);
+                    }
+                }
+                catch { }
+
+                if (!isAdmin)
+                {
+                    cat.Items.Add(new AuditItem { Label = "TPM Status", Value = "Requires Admin", TooltipText = "Launch application as Administrator to query TPM" });
+                    return cat;
+                }
+
+                using (var searcher = new ManagementObjectSearcher(@"root\CIMV2\Security\MicrosoftTpm", "SELECT * FROM Win32_Tpm"))
+                {
+                    var tpms = searcher.Get().Cast<ManagementObject>().ToList();
+                    if (tpms.Count == 0)
+                    {
+                        cat.Items.Add(new AuditItem { Label = "TPM Status", Value = "Not Present / Disabled", TooltipText = "No TPM found in WMI" });
+                        return cat;
+                    }
+
+                    foreach (var tpm in tpms)
+                    {
+                        bool isEnabled = (bool)(tpm["IsEnabled_InitialValue"] ?? false);
+                        bool isActivated = (bool)(tpm["IsActivated_InitialValue"] ?? false);
+                        bool isOwned = (bool)(tpm["IsOwned_InitialValue"] ?? false);
+
+                        string tpmStatus = "Present (Inactive)";
+                        if (isEnabled && isActivated)
+                        {
+                            tpmStatus = isOwned ? "Ready & Owned" : "Present (Not Ready / Unowned)";
+                        }
+
+                        cat.Items.Add(new AuditItem { Label = "TPM Status", Value = tpmStatus, TooltipText = "Trusted Platform Module state" });
+
+                        string mfgId = tpm["ManufacturerId"]?.ToString() ?? "Unknown";
+                        cat.Items.Add(new AuditItem { Label = "Manufacturer ID", Value = mfgId, TooltipText = "TPM manufacturer identity" });
+                        cat.Items.Add(new AuditItem { Label = "Manufacturer Version", Value = tpm["ManufacturerVersion"]?.ToString() ?? "Unknown", TooltipText = "TPM firmware version" });
+                        cat.Items.Add(new AuditItem { Label = "Spec Version", Value = tpm["SpecVersion"]?.ToString() ?? "Unknown", TooltipText = "TPM specification version" });
+
+                        TpmEndorsementInfo endorsement = GetTpmEndorsementInfo();
+                        string endorsementTooltip = endorsement.Error.Length == 0
+                            ? "Manufacturer endorsement-key certificate identity"
+                            : $"Manufacturer endorsement-key certificate identity. Query detail: {endorsement.Error}";
+
+                        cat.Items.Add(new AuditItem
+                        {
+                            Label = "Endorsement Key Serial Number",
+                            Value = string.IsNullOrWhiteSpace(endorsement.SerialNumber) ? "Unavailable" : endorsement.SerialNumber,
+                            TooltipText = endorsementTooltip
+                        });
+                        cat.Items.Add(new AuditItem
+                        {
+                            Label = "Endorsement Key Thumbprint",
+                            Value = string.IsNullOrWhiteSpace(endorsement.Thumbprint) ? "Unavailable" : endorsement.Thumbprint,
+                            TooltipText = endorsementTooltip
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                cat.Items.Add(new AuditItem { Label = "TPM Status", Value = "Error accessing WMI", TooltipText = ex.Message });
+            }
+
+            return cat;
+        }
+
+        private static TpmEndorsementInfo GetTpmEndorsementInfo()
+        {
+            const string command =
+                "$ErrorActionPreference='Stop';" +
+                "Import-Module TrustedPlatformModule -ErrorAction Stop;" +
+                "$ek=Get-TpmEndorsementKeyInfo -HashAlgorithm Sha256 -ErrorAction Stop;" +
+                "$cert=@($ek.ManufacturerCertificates | Select-Object -First 1);" +
+                "if($cert.Count -eq 0){$cert=@($ek.AdditionalCertificates | Select-Object -First 1)};" +
+                "$serial='';$thumbprint='';" +
+                "if($cert.Count -gt 0){$serial=[string]$cert[0].SerialNumber;$thumbprint=[string]$cert[0].Thumbprint};" +
+                "[pscustomobject]@{SerialNumber=$serial;Thumbprint=$thumbprint;IsPresent=[bool]$ek.IsPresent}|ConvertTo-Json -Compress";
+
+            try
+            {
+                string powershellPath = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System),
+                    "WindowsPowerShell", "v1.0", "powershell.exe");
+                var psi = new ProcessStartInfo
+                {
+                    FileName = powershellPath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8
+                };
+                psi.ArgumentList.Add("-NoLogo");
+                psi.ArgumentList.Add("-NoProfile");
+                psi.ArgumentList.Add("-NonInteractive");
+                psi.ArgumentList.Add("-ExecutionPolicy");
+                psi.ArgumentList.Add("Bypass");
+                psi.ArgumentList.Add("-Command");
+                psi.ArgumentList.Add(command);
+
+                using Process process = new Process { StartInfo = psi };
+                process.Start();
+                Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+                Task<string> errorTask = process.StandardError.ReadToEndAsync();
+
+                if (!process.WaitForExit(15000))
+                {
+                    process.Kill(entireProcessTree: true);
+                    return new TpmEndorsementInfo { Error = "PowerShell query timed out" };
+                }
+
+                string output = outputTask.GetAwaiter().GetResult();
+                string error = errorTask.GetAwaiter().GetResult();
+
+                if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+                {
+                    string detail = string.IsNullOrWhiteSpace(error)
+                        ? $"PowerShell exited with code {process.ExitCode}"
+                        : error.Trim();
+                    return new TpmEndorsementInfo { Error = ShortenError(detail) };
+                }
+
+                using JsonDocument json = JsonDocument.Parse(output.Trim());
+                JsonElement root = json.RootElement;
+                return new TpmEndorsementInfo
+                {
+                    SerialNumber = GetJsonString(root, "SerialNumber"),
+                    Thumbprint = GetJsonString(root, "Thumbprint"),
+                    Error = root.TryGetProperty("IsPresent", out JsonElement present) && !present.GetBoolean()
+                        ? "The endorsement public key is not present"
+                        : ""
+                };
+            }
+            catch (Exception ex)
+            {
+                return new TpmEndorsementInfo { Error = ShortenError(ex.Message) };
+            }
+        }
+
+        private static string GetJsonString(JsonElement root, string propertyName)
+        {
+            return root.TryGetProperty(propertyName, out JsonElement property) &&
+                   property.ValueKind == JsonValueKind.String
+                ? property.GetString()?.Trim() ?? ""
+                : "";
+        }
+
+        private static string ShortenError(string error)
+        {
+            string oneLine = error.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            return oneLine.Length <= 220 ? oneLine : oneLine[..220] + "…";
+        }
+
+        private sealed class TpmEndorsementInfo
+        {
+            public string SerialNumber { get; init; } = "";
+            public string Thumbprint { get; init; } = "";
+            public string Error { get; init; } = "";
         }
 
         private static AuditCategory GetMotherboard()
@@ -273,22 +371,14 @@ namespace SystemHardwareAudit
                             
                             if (string.IsNullOrEmpty(serial) || serial == "Unknown") continue;
 
-                            string hexWwn = "00000000";
-                            if (!string.IsNullOrEmpty(uniqueId))
-                            {
-                                var sb = new StringBuilder();
-                                foreach (char c in uniqueId) sb.Append(((int)c).ToString("X2") + ":");
-                                hexWwn = sb.ToString().TrimEnd(':');
-                            }
-
-                            bool isNvme = busType == 17;
+                            string fallbackWwn = string.IsNullOrWhiteSpace(uniqueId) ? "00000000" : uniqueId;
 
                             cat.Items.Add(new AuditItem { Label = "DISK_STORAGE_MODEL", Value = model, TooltipText = "Drive Model" });
-                            cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_PROPERTY", Value = serial, TooltipText = "Standard Drive Serial" });
-                            cat.Items.Add(new AuditItem { Label = "SMART_RCV_DRIVE_DATA", Value = isNvme ? "00000000" : serial, TooltipText = "SMART Serial Data" });
-                            cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_WWN", Value = hexWwn, TooltipText = "World Wide Name (Hex)" });
-                            cat.Items.Add(new AuditItem { Label = "SCSI_PASS_THROUGH", Value = serial, TooltipText = "SCSI Passthrough Serial" });
-                            cat.Items.Add(new AuditItem { Label = "ATA_PASS_THROUGH", Value = isNvme ? "00000000" : serial, TooltipText = "ATA Passthrough Serial" });
+                            cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_PROPERTY", Value = serial, TooltipText = "MSFT_PhysicalDisk serial fallback (native IOCTL unavailable)" });
+                            cat.Items.Add(new AuditItem { Label = "SMART_RCV_DRIVE_DATA", Value = "00000000", TooltipText = "Native SMART query unavailable" });
+                            cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_WWN", Value = fallbackWwn, TooltipText = "MSFT_PhysicalDisk UniqueId fallback (native VPD query unavailable)" });
+                            cat.Items.Add(new AuditItem { Label = "SCSI_PASS_THROUGH", Value = "00000000", TooltipText = "Native SCSI pass-through unavailable" });
+                            cat.Items.Add(new AuditItem { Label = "ATA_PASS_THROUGH", Value = "00000000", TooltipText = "Native ATA pass-through unavailable" });
                             cat.Items.Add(new AuditItem { IsSeparator = true });
                         }
                     }
@@ -308,11 +398,11 @@ namespace SystemHardwareAudit
                                 if (string.IsNullOrEmpty(serial) || serial == "Unknown") continue;
 
                                 cat.Items.Add(new AuditItem { Label = "DISK_STORAGE_MODEL", Value = model, TooltipText = "Drive Model" });
-                                cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_PROPERTY", Value = serial, TooltipText = "Standard Drive Serial" });
-                                cat.Items.Add(new AuditItem { Label = "SMART_RCV_DRIVE_DATA", Value = serial, TooltipText = "SMART Serial Data" });
-                                cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_WWN", Value = serial, TooltipText = "World Wide Name" });
-                                cat.Items.Add(new AuditItem { Label = "SCSI_PASS_THROUGH", Value = serial, TooltipText = "SCSI Passthrough Serial" });
-                                cat.Items.Add(new AuditItem { Label = "ATA_PASS_THROUGH", Value = serial, TooltipText = "ATA Passthrough Serial" });
+                                cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_PROPERTY", Value = serial, TooltipText = "Win32_DiskDrive serial fallback (native IOCTL unavailable)" });
+                                cat.Items.Add(new AuditItem { Label = "SMART_RCV_DRIVE_DATA", Value = "00000000", TooltipText = "Native SMART query unavailable" });
+                                cat.Items.Add(new AuditItem { Label = "STORAGE_QUERY_WWN", Value = "00000000", TooltipText = "Native VPD identifier query unavailable" });
+                                cat.Items.Add(new AuditItem { Label = "SCSI_PASS_THROUGH", Value = "00000000", TooltipText = "Native SCSI pass-through unavailable" });
+                                cat.Items.Add(new AuditItem { Label = "ATA_PASS_THROUGH", Value = "00000000", TooltipText = "Native ATA pass-through unavailable" });
                                 cat.Items.Add(new AuditItem { IsSeparator = true });
                             }
                         }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SystemHardwareAudit.Models
 {
@@ -6,6 +7,7 @@ namespace SystemHardwareAudit.Models
     {
         public string Name { get; set; }
         public List<AuditItem> Items { get; set; } = new List<AuditItem>();
+        public int DisplayItemCount => Items.Count(item => !item.IsSeparator);
     }
 
     public class AuditItem
