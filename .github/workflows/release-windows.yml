@@ -1,0 +1,124 @@
+name: Release Windows executable
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - SystemHardwareAudit.csproj
+      - Properties/PublishProfiles/WinX64.pubxml
+      - .github/workflows/release-windows.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read release version
+        id: version
+        shell: pwsh
+        run: |
+          $node = Select-Xml -Path SystemHardwareAudit.csproj -XPath "/Project/PropertyGroup/Version"
+          $version = $node.Node.InnerText.Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Project version '$version' is not a three-part release version."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore dependencies
+        run: dotnet restore SystemHardwareAudit.csproj --runtime win-x64
+
+      - name: Publish standalone executable
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          dotnet publish SystemHardwareAudit.csproj `
+            --configuration Release `
+            --no-restore `
+            -p:PublishProfile=WinX64 `
+            "-p:AssemblyName=spoofed-$env:RELEASE_VERSION" `
+            --output "artifacts/$env:RELEASE_VERSION"
+          if ($LASTEXITCODE -ne 0) {
+            throw "dotnet publish failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Verify release package
+        id: package
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $directory = "artifacts/$env:RELEASE_VERSION"
+          $exe = Join-Path $directory "spoofed-$env:RELEASE_VERSION.exe"
+          $publishedFiles = @(Get-ChildItem $directory -File)
+
+          if ($publishedFiles.Count -ne 1 -or !(Test-Path $exe)) {
+            $names = $publishedFiles.Name -join ', '
+            throw "Expected one standalone executable, but publish produced: $names"
+          }
+
+          $size = (Get-Item $exe).Length
+          if ($size -lt 10MB) {
+            throw "Published executable is only $size bytes and is not a complete standalone package."
+          }
+
+          $fileVersion = (Get-Item $exe).VersionInfo.FileVersion
+          if (!$fileVersion.StartsWith("$env:RELEASE_VERSION.")) {
+            throw "Executable version '$fileVersion' does not match release $env:RELEASE_VERSION."
+          }
+
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksum = "$exe.sha256"
+          "$hash *spoofed-$env:RELEASE_VERSION.exe" | Set-Content $checksum -Encoding ascii
+
+          "exe=$exe" >> $env:GITHUB_OUTPUT
+          "checksum=$checksum" >> $env:GITHUB_OUTPUT
+          "bytes=$size" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_EXE: ${{ steps.package.outputs.exe }}
+          RELEASE_CHECKSUM: ${{ steps.package.outputs.checksum }}
+          RELEASE_BYTES: ${{ steps.package.outputs.bytes }}
+          RELEASE_SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          if (gh release view $env:RELEASE_VERSION --repo $env:GITHUB_REPOSITORY 2>$null) {
+            throw "Release $env:RELEASE_VERSION already exists; refusing to replace it."
+          }
+
+          $notes = @"
+          Fixes the incomplete 1.1.4 Windows package. This build is a self-contained win-x64 executable and does not require a separate .NET Desktop Runtime installation.
+
+          Hardware checks, comparison behavior, and the application UI are unchanged.
+
+          Size: $env:RELEASE_BYTES bytes
+          SHA-256: $env:RELEASE_SHA256
+          "@
+
+          gh release create $env:RELEASE_VERSION `
+            $env:RELEASE_EXE `
+            $env:RELEASE_CHECKSUM `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title $env:RELEASE_VERSION `
+            --notes $notes
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub release creation failed with exit code $LASTEXITCODE."
+          }
